@@ -2,7 +2,6 @@
 ARG PYTHON_VERSION=3.12
 
 FROM python:${PYTHON_VERSION}-slim AS python-base
-ARG TEST_ENV
 
 WORKDIR /app
 
@@ -17,27 +16,14 @@ RUN --mount=type=cache,target="/var/cache/apt",sharing=locked \
     set -eux; \
     apt-get update; \
     apt-get upgrade -y; \
-    apt install --no-install-recommends -y  \
-        tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-chi-tra tesseract-ocr-deu git; \
+    apt-get install --no-install-recommends -y  \
+        tesseract-ocr tesseract-ocr-rus git; \
     apt-get autoremove -y
 
-# Install base requirements
-COPY requirements-base.txt .
-RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=locked \
-    pip install -r requirements-base.txt
-
-# Install custom requirements
+# Install all requirements
 COPY requirements.txt .
 RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=locked \
     pip install -r requirements.txt
-
-# Install test requirements if needed
-COPY requirements-test.txt .
-# build only when TEST_ENV="true"
-RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=locked \
-    if [ "$TEST_ENV" = "true" ]; then \
-      pip install -r requirements-test.txt; \
-    fi
 
 COPY . .
 
