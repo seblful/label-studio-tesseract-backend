@@ -4,32 +4,32 @@ import argparse
 import logging
 import logging.config
 
-logging.config.dictConfig({
-  "version": 1,
-  "formatters": {
-    "standard": {
-      "format": "[%(asctime)s] [%(levelname)s] [%(name)s::%(funcName)s::%(lineno)d] %(message)s"
-    }
-  },
-  "handlers": {
-    "console": {
-      "class": "logging.StreamHandler",
-      "level": "DEBUG",
-      "stream": "ext://sys.stdout",
-      "formatter": "standard"
-    }
-  },
-  "root": {
-    "level": "ERROR",
-    "handlers": [
-      "console"
-    ],
-    "propagate": True
-  }
-})
-
 from label_studio_ml.api import init_app
 from tesseract import BBOXOCR
+
+logging.config.dictConfig({
+    "version": 1,
+    "formatters": {
+        "standard": {
+            "format": "[%(asctime)s] [%(levelname)s] [%(name)s::%(funcName)s::%(lineno)d] %(message)s"
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "DEBUG",
+            "stream": "ext://sys.stdout",
+            "formatter": "standard"
+        }
+    },
+    "root": {
+        "level": "ERROR",
+        "handlers": [
+            "console"
+        ],
+        "propagate": True
+    }
+})
 
 
 _DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.json')
@@ -114,6 +114,4 @@ if __name__ == "__main__":
 
 else:
     # for uWSGI use
-    app = init_app(
-        model_class=BBOXOCR
-    )
+    app = init_app(model_class=BBOXOCR)
