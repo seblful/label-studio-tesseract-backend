@@ -16,3 +16,9 @@ services:
       # Specify the Label Studio URL (ipconfig in cmd) and API key to access
       - LABEL_STUDIO_HOST=${LABEL_STUDIO_HOST}
       - LABEL_STUDIO_ACCESS_TOKEN=${LABEL_STUDIO_ACCESS_TOKEN}
+
+    develop:
+      watch:
+        - action: rebuild
+          path: ./tesseract.py
+          target: /app/tesseract.py
