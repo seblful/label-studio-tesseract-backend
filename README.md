@@ -55,7 +55,7 @@ Configure parameters in `.env` file:
 
 From the project settings, select the **Model** page and click [**Connect Model**](https://labelstud.io/guide/ml#Connect-the-model-to-Label-Studio).
 
-   Add the URL `http://localghost:9090` and save the model as an ML backend.
+   Add the URL `http://locallhost:9090` and save the model as an ML backend.
 
 ### 7. Label in interactive mode
 
