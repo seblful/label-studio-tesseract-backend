@@ -30,67 +30,27 @@ class BBOXOCR(LabelStudioMLBase):
         cache_dir = os.path.join(self.MODEL_DIR, '.file-cache')
         os.makedirs(cache_dir, exist_ok=True)
         logger.debug(f'Using cache dir: {cache_dir}')
-        filepath = self.get_local_path(
-            img_path_url,
-            cache_dir=cache_dir,
-            ls_access_token=LABEL_STUDIO_ACCESS_TOKEN,
-            ls_host=LABEL_STUDIO_HOST,
-            task_id=task_id
-        )
+        filepath = self.get_local_path(img_path_url,
+                                       cache_dir=cache_dir,
+                                       ls_access_token=LABEL_STUDIO_ACCESS_TOKEN,
+                                       ls_host=LABEL_STUDIO_HOST,
+                                       task_id=task_id)
         image = Image.open(filepath)
         image = ImageOps.exif_transpose(image)
         return image
 
-    def predict(self, tasks, **kwargs) -> List:
-        # Extract task metadata
-        from_name, to_name, value = self.label_interface.get_first_tag_occurence('TextArea',
-                                                                                 'Image')
-        task = tasks[0]
-        img_path_url = task["data"][value]
-        context = kwargs.get('context')
+    @staticmethod
+    def _crop_image(image, meta) -> Image:
+        # Calculate image properties
+        x = meta["x"] * meta["original_width"] / 100
+        y = meta["y"] * meta["original_height"] / 100
+        w = meta["width"] * meta["original_width"] / 100
+        h = meta["height"] * meta["original_height"] / 100
 
-        if context:
-            if not context["result"]:
-                return []
+        # Crop image
+        image = image.crop((x, y, x + w, y + h))
 
-            image = self.load_image(img_path_url, task.get('id'))
-
-            result = context.get('result')[-1]
-            meta = self._extract_meta({**task, **result})
-            x = meta["x"] * meta["original_width"] / 100
-            y = meta["y"] * meta["original_height"] / 100
-            w = meta["width"] * meta["original_width"] / 100
-            h = meta["height"] * meta["original_height"] / 100
-
-            result_text = pt.image_to_string(image.crop((x, y, x + w, y + h)),
-                                             config=OCR_config).strip()
-
-            meta["text"] = result_text
-            temp = {
-                "original_width": meta["original_width"],
-                "original_height": meta["original_height"],
-                "image_rotation": 0,
-                "value": {
-                    "x": x / meta["original_width"] * 100,
-                    "y": y / meta["original_height"] * 100,
-                    "width": w / meta["original_width"] * 100,
-                    "height": h / meta["original_height"] * 100,
-                    "rotation": 0,
-                    "text": [
-                        meta["text"]
-                    ]
-                },
-                "id": meta["id"],
-                "from_name": from_name,
-                "to_name": meta['to_name'],
-                "type": "textarea",
-                "origin": "manual"
-            }
-            return [{'result': [temp, result],
-                     'score': 0,
-                     'model_version': self.get('model_version')}]
-        else:
-            return []
+        return image
 
     @staticmethod
     def _extract_meta(task) -> Dict:
@@ -108,3 +68,57 @@ class BBOXOCR(LabelStudioMLBase):
             meta["original_height"] = task['original_height']
 
         return meta
+
+    @staticmethod
+    def _fill_temp(meta,
+                   from_name,
+                   result_text) -> Dict:
+        temp = {
+            "original_width": meta["original_width"],
+            "original_height": meta["original_height"],
+            "image_rotation": 0,
+            "value": {
+                "x": meta['x'],
+                "y": meta['y'],
+                "width": meta["width"],
+                "height": meta["height"],
+                "rotation": 0,
+                "text": [result_text]},
+            "id": meta["id"],
+            "from_name": from_name,
+            "to_name": meta['to_name'],
+            "type": "textarea",
+            "origin": "manual"
+        }
+
+        return temp
+
+    def predict(self, tasks, **kwargs) -> List:
+        # Extract task metadata
+        from_name, to_name, value = self.label_interface.get_first_tag_occurence('TextArea',
+                                                                                 'Image')
+        task = tasks[0]
+        img_path_url = task["data"][value]
+        context = kwargs.get('context')
+
+        if context:
+            if not context["result"]:
+                return []
+
+            image = self.load_image(img_path_url, task.get('id'))
+            result = context.get('result')[-1]
+
+            # Extract meta
+            meta = self._extract_meta({**task, **result})
+            image = self._crop_image(image, meta)
+
+            # Predict text
+            result_text = pt.image_to_string(image, config=OCR_config).strip()
+
+            temp = self._fill_temp(meta, from_name, result_text)
+
+            return [{'result': [temp, result],
+                     'score': 0,
+                     'model_version': self.get('model_version')}]
+        else:
+            return []
