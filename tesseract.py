@@ -1,11 +1,12 @@
 from typing import List, Dict
-
 import os
 
 from PIL import Image, ImageOps
 
 import pytesseract as pt
+
 from label_studio_ml.model import LabelStudioMLBase
+from label_studio_ml.response import ModelResponse
 
 
 class ImageRecognition(LabelStudioMLBase):
@@ -16,13 +17,12 @@ class ImageRecognition(LabelStudioMLBase):
         # Task type
         self.task_types = ["OCR", "caption"]
         self.task_type = os.getenv("TASK_TYPE")
-        print(f"Task type is {self.task_type}.")
+        # print(f"Task type is {self.task_type}.")
+        # print(f"OCR config is {self.ocr_config}.")
 
         # From name, to name
         self.from_name = "transcription" if self.task_type == "OCR" else "caption"
         self.to_name = "image"
-
-        # OCR config
 
         # Cache
         self.model_dir = os.environ.get('MODEL_DIR', '.')
@@ -31,7 +31,6 @@ class ImageRecognition(LabelStudioMLBase):
 
     def setup(self) -> None:
         self.ocr_config = os.environ.get("OCR_CONFIG")
-        print(f"OCR config is {self.ocr_config}.")
         self.set("model_version", f"tesseract {self.ocr_config}")
 
     def load_image(self, image_url, task_id) -> Image.Image:
@@ -102,8 +101,6 @@ class ImageRecognition(LabelStudioMLBase):
         else:
             predictions = self.predict_caption(tasks, **kwargs)
 
-        print('.' * 20, "Returned prediction", '.' * 20)
-
         return predictions
 
     def predict_bbox(self, tasks, **kwargs) -> List:
@@ -111,14 +108,14 @@ class ImageRecognition(LabelStudioMLBase):
         from_name, to_name, value = self.label_interface.get_first_tag_occurence('TextArea',
                                                                                  'Image')
         task = tasks[0]
-        img_path_url = task["data"][value]
+        img_url = task["data"][value]
         context = kwargs.get('context')
 
         if context:
             if not context["result"]:
                 return []
 
-            image = self.load_image(img_path_url, task.get('id'))
+            image = self.load_image(img_url, task.get('id'))
             result = context.get('result')[-1]
 
             # Extract meta
@@ -126,10 +123,10 @@ class ImageRecognition(LabelStudioMLBase):
             image = self._crop_image(image, meta)
 
             # Predict text
-            result_text = pt.image_to_string(
+            pred_text = pt.image_to_string(
                 image, config=self.ocr_config).strip()
 
-            temp = self._fill_temp(meta, from_name, result_text)
+            temp = self._fill_temp(meta, from_name, pred_text)
 
             return [{'result': [temp, result],
                      'score': 0,
@@ -137,5 +134,30 @@ class ImageRecognition(LabelStudioMLBase):
         else:
             return []
 
-    def predict_caption(self, tasks, **kwargs):
-        return []
+    def predict_caption(self, tasks, **kwargs) -> ModelResponse:
+        # Extract task
+        from_name, to_name, value = self.label_interface.get_first_tag_occurence('TextArea',
+                                                                                 'Image')
+        task = tasks[0]
+
+        # Load image
+        img_url = task["data"][value]
+        image = self.load_image(img_url, task.get('id'))
+
+        # Recognize text
+        pred_text = pt.image_to_string(image, config=self.ocr_config).strip()
+
+        # Fill predictions
+        results = [{"from_name": from_name,
+                    "to_name": to_name,
+                    "type": "textarea",
+                    "origin": "manual",
+                    "value": {
+                        "text": [pred_text]}}]
+        predictions = [{"result": results,
+                        "model_version": self.model_version}]
+
+        return ModelResponse(predictions=predictions)
+
+    def fit(self, event, data, **kwargs) -> None:
+        raise NotImplementedError("Training is not implemented yet")
