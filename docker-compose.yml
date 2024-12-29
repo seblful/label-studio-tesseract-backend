@@ -1,21 +1,23 @@
-version: "3.8"
-
 services:
-
   tesseract:
     container_name: tesseract
     build: .
+    
+    environment:
+      # Specify log level
+      - LOG_LEVEL=DEBUG
+      - MODEL_DIR=.
+      # Specify the Label Studio URL and API key to access
+      # Determine the actual IP using 'ifconfig' (Linux/Mac) or 'ipconfig' (Windows).
+      - LABEL_STUDIO_URL=${LABEL_STUDIO_URL}
+      - LABEL_STUDIO_API_KEY=${LABEL_STUDIO_API_KEY}
+      - TASK_TYPE=${TASK_TYPE}
+      - OCR_CONFIG=${OCR_CONFIG}
+    
     ports:
       - 9090:9090
     volumes:
       - "./data/server:/data"
-    environment:
-      # Specify log level
-      - LOG_LEVEL=DEBUG
-
-      # Specify the Label Studio URL (ipconfig in cmd) and API key to access
-      - LABEL_STUDIO_HOST=${LABEL_STUDIO_HOST}
-      - LABEL_STUDIO_ACCESS_TOKEN=${LABEL_STUDIO_ACCESS_TOKEN}
 
     develop:
       watch:
