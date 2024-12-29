@@ -1,41 +1,44 @@
 from typing import List, Dict
 
 import os
-import logging
 
 from PIL import Image, ImageOps
 
 import pytesseract as pt
 from label_studio_ml.model import LabelStudioMLBase
 
-# Constants
-LABEL_STUDIO_ACCESS_TOKEN = os.environ.get("LABEL_STUDIO_ACCESS_TOKEN")
-LABEL_STUDIO_HOST = os.environ.get("LABEL_STUDIO_HOST")
 
-# Logger
-logger = logging.getLogger(__name__)
+class ImageRecognition(LabelStudioMLBase):
+    def __init__(self,
+                 **kwargs) -> None:
+        super(ImageRecognition, self).__init__(**kwargs)
 
-# OCR config
-global OCR_config
-OCR_config = "--psm 6 -l rus"
+        # Task type
+        self.task_types = ["OCR", "caption"]
+        self.task_type = os.getenv("TASK_TYPE")
+        print(f"Task type is {self.task_type}.")
 
+        # From name, to name
+        self.from_name = "transcription" if self.task_type == "OCR" else "caption"
+        self.to_name = "image"
 
-class BBOXOCR(LabelStudioMLBase):
-    MODEL_DIR = os.environ.get('MODEL_DIR', '.')
+        # OCR config
+
+        # Cache
+        self.model_dir = os.environ.get('MODEL_DIR', '.')
+        self.cache_dir = os.path.join(self.model_dir, '.file-cache')
+        os.makedirs(self.cache_dir, exist_ok=True)
 
     def setup(self) -> None:
-        self.set("model_version", f'{self.__class__.__name__}-v0.0.1')
+        self.ocr_config = os.environ.get("OCR_CONFIG")
+        print(f"OCR config is {self.ocr_config}.")
+        self.set("model_version", f"tesseract {self.ocr_config}")
 
-    def load_image(self, img_path_url, task_id) -> Image.Image:
-        cache_dir = os.path.join(self.MODEL_DIR, '.file-cache')
-        os.makedirs(cache_dir, exist_ok=True)
-        logger.debug(f'Using cache dir: {cache_dir}')
-        filepath = self.get_local_path(img_path_url,
-                                       cache_dir=cache_dir,
-                                       ls_access_token=LABEL_STUDIO_ACCESS_TOKEN,
-                                       ls_host=LABEL_STUDIO_HOST,
-                                       task_id=task_id)
-        image = Image.open(filepath)
+    def load_image(self, image_url, task_id) -> Image.Image:
+        image_path = self.get_local_path(url=image_url,
+                                         cache_dir=self.cache_dir,
+                                         task_id=task_id)
+        image = Image.open(image_path)
         image = ImageOps.exif_transpose(image)
         return image
 
@@ -94,6 +97,16 @@ class BBOXOCR(LabelStudioMLBase):
         return temp
 
     def predict(self, tasks, **kwargs) -> List:
+        if self.task_type == "OCR":
+            predictions = self.predict_bbox(tasks, **kwargs)
+        else:
+            predictions = self.predict_caption(tasks, **kwargs)
+
+        print('.' * 20, "Returned prediction", '.' * 20)
+
+        return predictions
+
+    def predict_bbox(self, tasks, **kwargs) -> List:
         # Extract task metadata
         from_name, to_name, value = self.label_interface.get_first_tag_occurence('TextArea',
                                                                                  'Image')
@@ -113,7 +126,8 @@ class BBOXOCR(LabelStudioMLBase):
             image = self._crop_image(image, meta)
 
             # Predict text
-            result_text = pt.image_to_string(image, config=OCR_config).strip()
+            result_text = pt.image_to_string(
+                image, config=self.ocr_config).strip()
 
             temp = self._fill_temp(meta, from_name, result_text)
 
@@ -122,3 +136,6 @@ class BBOXOCR(LabelStudioMLBase):
                      'model_version': self.get('model_version')}]
         else:
             return []
+
+    def predict_caption(self, tasks, **kwargs):
+        return []

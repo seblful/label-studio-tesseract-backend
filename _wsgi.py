@@ -5,7 +5,7 @@ import logging
 import logging.config
 
 from label_studio_ml.api import init_app
-from tesseract import BBOXOCR
+from tesseract import ImageRecognition
 
 logging.config.dictConfig({
     "version": 1,
@@ -102,11 +102,11 @@ if __name__ == "__main__":
         kwargs.update(parse_kwargs())
 
     if args.check:
-        print('Check "' + BBOXOCR.__name__ + '" instance creation..')
-        model = BBOXOCR(**kwargs)
+        print('Check "' + ImageRecognition.__name__ + '" instance creation..')
+        model = ImageRecognition(**kwargs)
 
     app = init_app(
-        model_class=BBOXOCR,
+        model_class=ImageRecognition,
         **kwargs
     )
 
@@ -114,4 +114,4 @@ if __name__ == "__main__":
 
 else:
     # for uWSGI use
-    app = init_app(model_class=BBOXOCR)
+    app = init_app(model_class=ImageRecognition)
